@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="hi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Folder Manager</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f2f5f9;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: #1f2937;
+            color: white;
+            padding: 18px;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 25px auto;
+            padding: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        h2 {
+            margin-bottom: 15px;
+        }
+
+        input,
+        select,
+        button {
+            width: 100%;
+            padding: 13px;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        button {
+            border: none;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .camera {
+            width: 100%;
+            max-height: 450px;
+            background: black;
+            border-radius: 12px;
+            margin-top: 10px;
+        }
+
+        .folder {
+            padding: 15px;
+            background: #eef2ff;
+            margin-top: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .folder:hover {
+            background: #e0e7ff;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .photo-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 130px;
+            object-fit: cover;
+        }
+
+        .photo-card p {
+            padding: 8px;
+            word-break: break-word;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            margin: 0 8px 8px;
+            width: calc(100% - 16px);
+        }
+
+        .status {
+            margin-top: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>📁 Photo Folder Manager</h1>
+        <p>Photos ko folders mein organize karein</p>
+    </div>
+
+    <div class="container">
+
+        <!-- Folder Section -->
+        <div class="card">
+            <h2>📂 Folder</h2>
+
+            <select id="folderSelect">
+                <option value="">Select Folder</option>
+            </select>
+
+            <input type="text" id="folderName" placeholder="Naya folder ka naam">
+
+            <button onclick="createFolder()">
+                ➕ Naya Folder Banayein
+            </button>
+        </div>
+
+        <!-- Photo Section -->
+        <div class="card">
+
+            <h2>📷 Photo</h2>
+
+            <input type="text" id="fileName" placeholder="Photo ka naam likhein">
+
+            <video id="camera" class="camera" autoplay playsinline>
+            </video>
+
+            <button onclick="startCamera()">
+                📷 Camera Start
+            </button>
+
+            <button onclick="takePhoto()">
+                📸 Photo Click & Save
+            </button>
+
+            <br>
+
+            <input type="file" id="photoInput" accept="image/*" capture="environment">
+
+            <button onclick="uploadPhoto()">
+                💾 Photo Select & Save
+            </button>
+
+            <div class="status" id="status"></div>
+
+        </div>
+
+        <!-- Saved Photos -->
+        <div class="card">
+            <h2>🖼️ Saved Photos</h2>
+
+            <div id="photoGrid" class="photo-grid"></div>
+        </div>
+
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script>
+
+        let folders = {};
+        let cameraStream = null;
+
+        const folderSelect =
+            document.getElementById("folderSelect");
+
+        const statusText =
+            document.getElementById("status");
+
+        const photoGrid =
+            document.getElementById("photoGrid");
+
+
+        // Load folders from browser storage
+        function loadFolders() {
+
+            const saved =
+                localStorage.getItem("photoFolders");
+
+            if (saved) {
+                folders = JSON.parse(saved);
+            }
+
+            updateFolderList();
+        }
+
+
+        // Save folders
+        function saveFolders() {
+
+            localStorage.setItem(
+                "photoFolders",
+                JSON.stringify(folders)
+            );
+        }
+
+
+        // Update folder dropdown
+        function updateFolderList() {
+
+            folderSelect.innerHTML =
+                '<option value="">Select Folder</option>';
+
+            Object.keys(folders).forEach(folder => {
+
+                const option =
+                    document.createElement("option");
+
+                option.value = folder;
+                option.textContent = "📁 " + folder;
+
+                folderSelect.appendChild(option);
+            });
+        }
+
+
+        // Create new folder
+        function createFolder() {
+
+            const input =
+                document.getElementById("folderName");
+
+            const name =
+                input.value.trim();
+
+            if (!name) {
+                showStatus("Folder ka naam likhein");
+                return;
+            }
+
+            if (folders[name]) {
+                showStatus("Ye folder already exist karta hai");
+                return;
+            }
+
+            folders[name] = [];
+
+            saveFolders();
+
+            updateFolderList();
+
+            folderSelect.value = name;
+
+            input.value = "";
+
+            showStatus(
+                "📁 Folder '" + name + "' ready hai"
+            );
+
+            displayPhotos();
+        }
+
+
+        // Start camera
+        async function startCamera() {
+
+            try {
+
+                cameraStream =
+                    await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: "environment"
+                        }
+                    });
+
+                document.getElementById("camera")
+                    .srcObject = cameraStream;
+
+                showStatus("📷 Camera start ho gaya");
+
+            } catch (error) {
+
+                showStatus(
+                    "Camera access nahi mila. Browser permission check karein."
+                );
+            }
+        }
+
+
+        // Take photo
+        function takePhoto() {
+
+            const folder =
+                folderSelect.value;
+
+            const name =
+                document.getElementById("fileName")
+                    .value.trim();
+
+            if (!folder) {
+                showStatus("Pehle folder select karein");
+                return;
+            }
+
+            if (!name) {
+                showStatus("Photo ka naam likhein");
+                return;
+            }
+
+            const video =
+                document.getElementById("camera");
+
+            if (!video.srcObject) {
+                showStatus("Pehle camera start karein");
+                return;
+            }
+
+            const canvas =
+                document.getElementById("canvas");
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const ctx =
+                canvas.getContext("2d");
+
+            ctx.drawImage(
+                video,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+            const image =
+                canvas.toDataURL("image/jpeg", 0.9);
+
+            folders[folder].push({
+                name: name,
+                image: image,
+                date: new Date().toLocaleString()
+            });
+
+            saveFolders();
+
+            document.getElementById("fileName").value = "";
+
+            displayPhotos();
+
+            showStatus(
+                "✅ Photo '" + name + "' save ho gayi"
+            );
+        }
+
+
+        // Upload/select photo
+        function uploadPhoto() {
+
+            const folder =
+                folderSelect.value;
+
+            const name =
+                document.getElementById("fileName")
+                    .value.trim();
+
+            const file =
+                document.getElementById("photoInput")
+                    .files[0];
+
+            if (!folder) {
+                showStatus("Pehle folder select karein");
+                return;
+            }
+
+            if (!name) {
+                showStatus("Photo ka naam likhein");
+                return;
+            }
+
+            if (!file) {
+                showStatus("Photo select karein");
+                return;
+            }
+
+            const reader =
+                new FileReader();
+
+            reader.onload = function (event) {
+
+                folders[folder].push({
+                    name: name,
+                    image: event.target.result,
+                    date: new Date().toLocaleString()
+                });
+
+                saveFolders();
+
+                document.getElementById("fileName").value = "";
+
+                displayPhotos();
+
+                showStatus(
+                    "✅ Photo folder mein save ho gayi"
+                );
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+
+        // Display photos
+        function displayPhotos() {
+
+            photoGrid.innerHTML = "";
+
+            const folder =
+                folderSelect.value;
+
+            if (!folder || !folders[folder]) {
+                return;
+            }
+
+            folders[folder].forEach((photo, index) => {
+
+                const card =
+                    document.createElement("div");
+
+                card.className = "photo-card";
+
+                card.innerHTML = `
+            <img src="${photo.image}">
+            <p>
+                <b>${photo.name}</b><br>
+                <small>${photo.date}</small>
+            </p>
+
+            <button
+                class="delete-btn"
+                onclick="deletePhoto(${index})">
+                🗑️ Delete
+            </button>
+        `;
+
+                photoGrid.appendChild(card);
+            });
+        }
+
+
+        // Delete photo
+        function deletePhoto(index) {
+
+            const folder =
+                folderSelect.value;
+
+            if (!folder) return;
+
+            folders[folder].splice(index, 1);
+
+            saveFolders();
+
+            displayPhotos();
+
+            showStatus("🗑️ Photo delete ho gayi");
+        }
+
+
+        // Folder change
+        folderSelect.addEventListener(
+            "change",
+            displayPhotos
+        );
+
+
+        // Status
+        function showStatus(message) {
+
+            statusText.textContent = message;
+        }
+
+
+        // Start app
+        loadFolders();
+
+    </script>
+
+</body>
+
+</html>
